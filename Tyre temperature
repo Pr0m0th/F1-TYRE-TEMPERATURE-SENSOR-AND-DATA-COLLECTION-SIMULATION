@@ -1,0 +1,131 @@
+#include <Wire.h>
+
+#include <Adafruit_GFX.h>
+
+#include <Adafruit_SSD1306.h>
+
+#include <Adafruit_MPU6050.h>
+
+#include <Adafruit_Sensor.h>
+
+#define SCREEN_WIDTH 128
+
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &*Wire*, -1);
+
+Adafruit_MPU6050 mpu;
+
+// ADC pins for tire temp (simulated with potentiometers)
+
+#define POT_LF 34  // Front Left
+
+#define POT_RF 35  // Front Right
+
+#define POT_LR 32  // Rear Left
+
+#define POT_RR 33  // Rear Right
+
+// Convert ADC value to temp range (say 60–120°C)
+
+float adcToTemp(int adcVal) {
+
+return map(adcVal, 0, 4095, 60, 120);
+
+}
+
+void setup() {
+
+*Serial*.begin(115200);
+
+*Wire*.begin(21, 22);
+
+if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+
+*Serial*.println("OLED init failed");
+
+while (true);
+
+}
+
+display.clearDisplay();
+
+display.setTextColor(SSD1306_WHITE);
+
+display.setTextSize(1);
+
+if (!mpu.begin()) {
+
+*Serial*.println("MPU6050 not detected!");
+
+while (true);
+
+}
+
+*Serial*.println("F1 Telemetry System Ready");
+
+}
+
+void loop() {
+
+float tLF = adcToTemp(analogRead(POT_LF));
+
+float tRF = adcToTemp(analogRead(POT_RF));
+
+float tLR = adcToTemp(analogRead(POT_LR));
+
+float tRR = adcToTemp(analogRead(POT_RR));
+
+// Simulated G-force from pot or math
+
+int gPot = analogRead(39);
+
+float gForce = map(gPot, 0, 4095, 0, 500) / 100.0; // 0 to 5g
+
+// Determine status
+
+const char* sLF = tireStatus(tLF);
+
+const char* sRF = tireStatus(tRF);
+
+const char* sLR = tireStatus(tLR);
+
+const char* sRR = tireStatus(tRR);
+
+// OLED Display
+
+display.clearDisplay();
+
+display.setCursor(0, 0);
+
+display.printf("LF %.0fC %s\n", tLF, sLF);
+
+display.printf("RF %.0fC %s\n", tRF, sRF);
+
+display.printf("LR %.0fC %s\n", tLR, sLR);
+
+display.printf("RR %.0fC %s\n", tRR, sRR);
+
+display.printf("G-Force: %.2fg", gForce);
+
+display.display();
+
+// Serial telemetry
+
+*Serial*.printf("[LF %.0fC %s] [RF %.0fC %s] [LR %.0fC %s] [RR %.0fC %s] | G: %.2fg\n\n",
+
+tLF, sLF, tRF, sRF, tLR, sLR, tRR, sRR, gForce);
+
+delay(500);
+
+}
+
+const char* tireStatus(float temp) {
+
+if (temp > 110) return "OVERHEAT";
+
+else if (temp > 100) return "WARM";
+
+else return "OK";
+
+}
