@@ -1,0 +1,82 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// Tire temps
+float tLF = 85, tRF = 85, tLR = 85, tRR = 85;
+// Monaco lap structure (19 turns, ~2s each)
+const int lapMap[] = {
+0, 1, 0, 1, 0, 1, 0, 1, 0,
+1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1
+};
+const int numPhases = sizeof(lapMap) / sizeof(lapMap[0]);
+int currentPhase = 0;
+unsigned long lapStart;
+const char* tireStatus(float temp) {
+if (temp > 110) return "HOT";
+else if (temp > 100) return "WARM";
+else return "OK";
+}
+void setup() {
+Serial.begin(115200);
+Wire.begin(21, 22);
+display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+display.clearDisplay();
+display.setTextColor(SSD1306_WHITE);
+display.setTextSize(1);
+lapStart = millis();
+Serial.println("🏁 Starting Monaco Lap Simulation...");
+}
+void loop() {
+unsigned long now = millis();
+int phaseDuration = 2000; // 2 seconds per phase
+currentPhase = (now - lapStart) / phaseDuration;
+if (currentPhase >= numPhases) {
+display.clearDisplay();
+display.setCursor(0, 0);
+display.println("🏁 Lap Finished!");
+display.printf("LF %.1fC\nRF %.1fC\n", tLF, tRF);
+display.printf("LR %.1fC\nRR %.1fC\n", tLR, tRR);
+display.display();
+Serial.println("Lap Completed!");
+Serial.printf("Final Temps: LF: %.1fC, RF: %.1fC, LR: %.1fC, RR: %.1fC\n", tLF, tRF, tLR, tRR);
+while (true);
+}
+bool isTurn = lapMap[currentPhase];
+float trackTemp = 80.0;
+if (isTurn) {
+tRF += 0.8;
+tRR += 0.6;
+tLF += 0.5;
+tLR += 0.4;
+}
+else {
+tLF -= (tLF - trackTemp) * 0.05;
+tLR -= (tLR - trackTemp) * 0.04;
+tRF -= (tRF - trackTemp) * 0.04;
+tRR -= (tRR - trackTemp) * 0.04;
+}
+// Clamp values
+tLF = constrain(tLF, trackTemp, 140);
+tRF = constrain(tRF, trackTemp, 140);
+tLR = constrain(tLR, trackTemp, 140);
+tRR = constrain(tRR, trackTemp, 140);
+const char* sLF = tireStatus(tLF);
+const char* sRF = tireStatus(tRF);
+const char* sLR = tireStatus(tLR);
+const char* sRR = tireStatus(tRR);
+// Display
+display.clearDisplay();
+display.setCursor(0, 0);
+display.printf("Phase %d/%d: %s\n", currentPhase + 1, numPhases, isTurn ? "TURN" : "STRAIGHT");
+display.printf("LF %.0fC %s\n", tLF, sLF);
+display.printf("RF %.0fC %s\n", tRF, sRF);
+display.printf("LR %.0fC %s\n", tLR, sLR);
+display.printf("RR %.0fC %s\n", tRR, sRR);
+display.display();
+Serial.printf("S: %d | LF: %.1f, RF: %.1f, LR: %.1f, RR: %.1f\n",
+currentPhase + 1, tLF, tRF, tLR, tRR);
+delay(500);
+}
